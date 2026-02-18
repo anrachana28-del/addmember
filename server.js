@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Load accounts
+// Load accounts from .env
 const accounts = [
     {
         name: "Account 1",
@@ -22,23 +22,35 @@ const accounts = [
 ];
 
 const clients = [];
+let clientsReady = false;
 
 async function startClients() {
     for (const acc of accounts) {
         const client = new TelegramClient(new StringSession(acc.session), acc.apiId, acc.apiHash, { connectionRetries: 5 });
-        await client.start({ phoneNumber: async () => '', password: async () => '', phoneCode: async () => '', onError: console.log });
-        clients.push({ name: acc.name, client });
-        console.log(`Telegram Client Started: ${acc.name}`);
+        try {
+            await client.start({
+                phoneNumber: async () => '',
+                password: async () => '',
+                phoneCode: async () => '',
+                onError: console.log
+            });
+            clients.push({ name: acc.name, client });
+            console.log(`Telegram Client Started: ${acc.name}`);
+        } catch (err) {
+            console.error(`Failed to start client ${acc.name}:`, err.message);
+        }
     }
+    clientsReady = true;
 }
 
 startClients();
 
-// Serve UI
+// Serve index.html
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // API: List Accounts
 app.get('/api/accounts', (req, res) => {
+    if (!clientsReady) return res.json([]);
     const list = clients.map((c, i) => ({ index: i, name: c.name }));
     res.json(list);
 });
@@ -47,15 +59,18 @@ app.get('/api/accounts', (req, res) => {
 app.get('/api/groups/:accountIndex', async (req, res) => {
     const idx = Number(req.params.accountIndex);
     if (!clients[idx]) return res.json({ success: false, message: 'Account not found' });
+
     const client = clients[idx].client;
 
     try {
-        const dialogs = await client.getDialogs();
-        const groups = dialogs
-            .filter(d => d.isGroup || d.isChannel)
-            .map(g => ({ id: g.id, title: g.title }));
+        // Explicit limit + safe handling
+        const dialogs = await client.getDialogs({ limit: 1000 });
+        const groups = (dialogs || [])
+            .filter(d => d && (d.isGroup || d.isChannel))
+            .map(g => ({ id: g.id, title: g.title || "No title" }));
         res.json({ success: true, groups });
     } catch (err) {
+        console.error(err);
         res.json({ success: false, message: err.message });
     }
 });
@@ -70,6 +85,8 @@ app.post('/api/addMember', async (req, res) => {
 
     try {
         let users = [];
+
+        // Detect private vs public link
         if (sourceLink.includes('joinchat')) {
             try {
                 const invite = await client.invoke(new Api.messages.CheckChatInvite({ hash: sourceLink.split('/').pop() }));
@@ -99,6 +116,7 @@ app.post('/api/addMember', async (req, res) => {
         res.json({ success: true, message: `Added: ${success}, Failed: ${failed}` });
 
     } catch (err) {
+        console.error(err);
         res.json({ success: false, message: err.message });
     }
 });
