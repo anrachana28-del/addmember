@@ -6,8 +6,8 @@
 <title>Telegram Add Member</title>
 <style>
 body { font-family: Arial; padding:20px; background:#f6f6f6; }
-h2 { color:#333; }
-select, input, button { padding:8px; margin:5px; width:320px; }
+h2,h3 { color:#333; }
+select,input,button { padding:8px; margin:5px; width:320px; }
 #log { margin-top:20px; white-space: pre-line; background:#eee; padding:10px; max-height:400px; overflow:auto; }
 button { cursor:pointer; background:#2aabee; color:white; border:none; border-radius:5px; }
 button:hover { background:#1b88c7; }
@@ -35,43 +35,59 @@ button:hover { background:#1b88c7; }
 let accounts = [];
 let groups = [];
 
+// Load accounts
 async function loadAccounts(){
     const res = await fetch('/api/accounts');
     accounts = await res.json();
     const select = document.getElementById('accountSelect');
-    accounts.forEach(acc => {
+    select.innerHTML = '';
+    accounts.forEach(acc=>{
         const option = document.createElement('option');
         option.value = acc.index;
         option.textContent = acc.name;
         select.appendChild(option);
     });
-    loadGroups(0); // load groups for first account
+    if(accounts.length>0) loadGroups(0);
 }
 
+// Load groups for selected account
 async function loadGroups(accountIndex){
     const res = await fetch(`/api/groups/${accountIndex}`);
     const data = await res.json();
-    if(!data.success) return alert('Failed to load groups: '+data.message);
-    groups = data.groups;
     const sourceSelect = document.getElementById('sourceSelect');
     const destSelect = document.getElementById('destinationSelect');
     sourceSelect.innerHTML = '';
     destSelect.innerHTML = '';
-    groups.forEach(g => {
-        const o1 = document.createElement('option'); o1.value = g.id; o1.textContent = g.title; sourceSelect.appendChild(o1);
-        const o2 = document.createElement('option'); o2.value = g.id; o2.textContent = g.title; destSelect.appendChild(o2);
-    });
+    if(data.success){
+        data.groups.forEach(g=>{
+            const o1 = document.createElement('option');
+            o1.value = g.username || g.id;
+            o1.textContent = g.title;
+            sourceSelect.appendChild(o1);
+
+            const o2 = document.createElement('option');
+            o2.value = g.username || g.id;
+            o2.textContent = g.title;
+            destSelect.appendChild(o2);
+        });
+    } else {
+        alert('Failed to load groups: ' + data.message);
+    }
 }
 
-document.getElementById('accountSelect').addEventListener('change', e => loadGroups(e.target.value));
+// Change account
+document.getElementById('accountSelect').addEventListener('change', e=>{
+    loadGroups(e.target.value);
+});
 
+// Start adding members
 document.getElementById('start').addEventListener('click', async ()=>{
     const accountIndex = document.getElementById('accountSelect').value;
-    const sourceId = document.getElementById('sourceSelect').value;
-    const destinationId = document.getElementById('destinationSelect').value;
+    const sourceLink = document.getElementById('sourceSelect').value;
+    const destinationLink = document.getElementById('destinationSelect').value;
     const delay = Number(document.getElementById('delay').value) || 5000;
 
-    if(sourceId === destinationId) return alert('Source and Destination cannot be the same!');
+    if(sourceLink === destinationLink) return alert('Source and Destination cannot be the same!');
 
     const logDiv = document.getElementById('log');
     logDiv.textContent = 'Starting process...\n';
@@ -80,12 +96,7 @@ document.getElementById('start').addEventListener('click', async ()=>{
         const response = await fetch('/api/addMember', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({
-                accountIndex,
-                sourceLink: sourceId,
-                destinationLink: destinationId,
-                delay
-            })
+            body: JSON.stringify({ accountIndex, sourceLink, destinationLink, delay })
         });
         const data = await response.json();
         if(data.success) logDiv.textContent += `\n✅ Done!\n${data.message}`;
