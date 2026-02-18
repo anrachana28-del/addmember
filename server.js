@@ -11,15 +11,18 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Load accounts from .env
-const accounts = [
-    {
-        name: "Account 1",
-        apiId: Number(process.env.API_ID_1),
-        apiHash: process.env.API_HASH_1,
-        session: process.env.SESSION_1
-    }
-];
+// Load all accounts dynamically from .env
+const accounts = [];
+let i = 1;
+while (process.env[`API_ID_${i}`] && process.env[`API_HASH_${i}`] && process.env[`SESSION_${i}`]) {
+    accounts.push({
+        name: `Account ${i}`,
+        apiId: Number(process.env[`API_ID_${i}`]),
+        apiHash: process.env[`API_HASH_${i}`],
+        session: process.env[`SESSION_${i}`]
+    });
+    i++;
+}
 
 const clients = [];
 let clientsReady = false;
@@ -55,7 +58,7 @@ app.get('/api/accounts', (req, res) => {
     res.json(list);
 });
 
-// API: List Groups for account
+// API: List Groups
 app.get('/api/groups/:accountIndex', async (req, res) => {
     const idx = Number(req.params.accountIndex);
     if (!clients[idx]) return res.json({ success: false, message: 'Account not found' });
@@ -86,7 +89,7 @@ app.post('/api/addMember', async (req, res) => {
         let users = [];
         let sourceEntity, destEntity;
 
-        // Get source entity
+        // Source
         try {
             if (sourceLink.includes('joinchat')) {
                 const hash = sourceLink.split('/').pop();
@@ -100,7 +103,7 @@ app.post('/api/addMember', async (req, res) => {
             return res.json({ success: false, message: 'Cannot find source group: ' + err.message });
         }
 
-        // Get destination entity
+        // Destination
         try {
             if (destinationLink.includes('joinchat')) {
                 const hash = destinationLink.split('/').pop();
@@ -113,13 +116,13 @@ app.post('/api/addMember', async (req, res) => {
             return res.json({ success: false, message: 'Cannot find destination group: ' + err.message });
         }
 
-        // Add members one by one
+        // Add members
         let successCount = 0, failCount = 0;
         for (const user of users) {
             try {
                 await client.addChatUser(destEntity, user.id, { fwdLimit: 0 });
                 successCount++;
-            } catch (err) {
+            } catch {
                 failCount++;
             }
             await new Promise(r => setTimeout(r, wait));
