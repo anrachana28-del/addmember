@@ -19,18 +19,25 @@ for(let i=1;i<=5;i++){
       apiHash: process.env[`API_HASH_${i}`],
       session: process.env[`SESSION_${i}`],
       status: 'offline',
-      client: null
+      client: null,
+      username: '-', // will fetch
+      phone: '-', // optional
     });
   }
 }
 
-// Connect all accounts
+// Connect all clients
 (async()=>{
   for(let c of clients){
     try{
       const client = new TelegramClient(new StringSession(c.session), c.apiId, c.apiHash, { connectionRetries:5 });
       await client.connect();
       c.client = client;
+
+      // fetch me
+      const me = await client.getMe();
+      c.username = me.username || '-';
+      c.phone = me.phone || '-';
       c.status = 'online';
       console.log(`${c.name} connected`);
     }catch(err){
@@ -40,17 +47,43 @@ for(let i=1;i<=5;i++){
   }
 })();
 
-// Serve HTML
+// Serve frontend
 app.get('/', (req,res)=>{
   res.sendFile(path.join(__dirname,'index.html'));
 });
 
-// Return account status
-app.get('/accounts',(req,res)=>{
-  res.json(clients.map(a=>({name:a.name,status:a.status})));
+// Accounts admin page data
+app.get('/accounts', (req,res)=>{
+  res.json(clients.map(c=>({
+    name: c.name,
+    username: c.username,
+    phone: c.phone,
+    status: c.status
+  })));
 });
 
-// SSE: Add members with delay and batch
+// List groups page data
+app.get('/groups', async (req,res)=>{
+  let allGroups = [];
+  for(let c of clients){
+    if(!c.client) continue;
+    try{
+      const dialogs = await c.client.getDialogs({});
+      const groups = dialogs.filter(d=>d.isGroup).map(g=>{
+        return {
+          title: g.name,
+          id: g.id.toString(),
+          username: g.username || '-',
+          role: g.adminRights ? "Admin" : "Member"
+        }
+      });
+      allGroups = allGroups.concat(groups);
+    }catch(e){}
+  }
+  res.json(allGroups);
+});
+
+// SSE: add members with delay + batch
 app.get('/add-members-stream', async (req,res)=>{
   const { source, target } = req.query;
   res.set({
@@ -62,7 +95,9 @@ app.get('/add-members-stream', async (req,res)=>{
 
   stopFlag = false;
 
-  const membersToAdd = 20; // example total members
+  const members = [
+    {username:"user1"}, {username:"user2"}, {username:"user3"}, {username:"user4"}
+  ]; // sample list
   let added = 0;
 
   outer:
@@ -70,33 +105,38 @@ app.get('/add-members-stream', async (req,res)=>{
     const client = clientObj.client;
     if(!client) continue;
 
-    // batch of 10 members/account
-    for(let i=0;i<Math.min(10,membersToAdd-added);i++){
+    for(let member of members){
       if(stopFlag) break outer;
-
       added++;
-      const percent = Math.floor((added/membersToAdd)*100);
+      const percent = Math.floor((added/members.length)*100);
 
-      // TODO: replace with actual Telegram add member logic
-      // await client.addMember(target, memberId);
+      // Simulate success/failure
+      let success = Math.random()>0.2; // 80% success
+      // TODO: replace with real Telegram add-member logic
+      // await client.addMember(targetGroupId, memberId);
 
-      res.write(`data: ${JSON.stringify({message:`${clientObj.name} បន្ថែម member ${added}`, percent})}\n\n`);
+      res.write(`data: ${JSON.stringify({
+        member: member.username,
+        status: success?"ជោគជ័យ":"បរាជ័យ",
+        account: clientObj.username,
+        source,
+        target,
+        percent
+      })}\n\n`);
 
-      // Delay 40 seconds
-      await new Promise(r => setTimeout(r,40000));
-
-      if(added >= membersToAdd) break outer;
+      // delay 40s per member
+      await new Promise(r=>setTimeout(r,40000));
     }
   }
 
-  res.write(`data: ${JSON.stringify({message:"បានបញ្ចប់!", percent:100})}\n\n`);
+  res.write(`data: ${JSON.stringify({member:"-", status:"បានបញ្ចប់!", account:"-", source, target, percent:100})}\n\n`);
   res.end();
 });
 
 // Stop endpoint
-app.get('/stop', (req,res)=>{
+app.get('/stop',(req,res)=>{
   stopFlag = true;
   res.send("Stopped");
 });
 
-app.listen(PORT,()=>console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, ()=>console.log(`Server running http://localhost:${PORT}`));
