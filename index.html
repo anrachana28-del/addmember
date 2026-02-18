@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Telegram Add Member</title>
+<link rel="icon" href="favicon.ico">
 <style>
 body { font-family: Arial; padding:20px; background:#f6f6f6; }
 h2,h3 { color:#333; }
@@ -33,9 +34,7 @@ button:hover { background:#1b88c7; }
 
 <script>
 let accounts = [];
-let groups = [];
 
-// Load accounts
 async function loadAccounts(){
     const res = await fetch('/api/accounts');
     accounts = await res.json();
@@ -50,7 +49,6 @@ async function loadAccounts(){
     if(accounts.length>0) loadGroups(0);
 }
 
-// Load groups for selected account
 async function loadGroups(accountIndex){
     const res = await fetch(`/api/groups/${accountIndex}`);
     const data = await res.json();
@@ -60,27 +58,21 @@ async function loadGroups(accountIndex){
     destSelect.innerHTML = '';
     if(data.success){
         data.groups.forEach(g=>{
-            const o1 = document.createElement('option');
-            o1.value = g.username || g.id;
-            o1.textContent = g.title;
-            sourceSelect.appendChild(o1);
-
-            const o2 = document.createElement('option');
-            o2.value = g.username || g.id;
-            o2.textContent = g.title;
-            destSelect.appendChild(o2);
+            const val = g.username || g.id;
+            const option1 = new Option(g.title, val);
+            sourceSelect.add(option1);
+            const option2 = new Option(g.title, val);
+            destSelect.add(option2);
         });
     } else {
         alert('Failed to load groups: ' + data.message);
     }
 }
 
-// Change account
 document.getElementById('accountSelect').addEventListener('change', e=>{
     loadGroups(e.target.value);
 });
 
-// Start adding members
 document.getElementById('start').addEventListener('click', async ()=>{
     const accountIndex = document.getElementById('accountSelect').value;
     const sourceLink = document.getElementById('sourceSelect').value;
