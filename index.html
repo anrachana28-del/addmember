@@ -10,9 +10,7 @@ body{
   padding:20px;
   background:#f4f6f9;
 }
-
 h2{margin-bottom:15px;}
-
 .card{
   background:#fff;
   padding:20px;
@@ -20,17 +18,14 @@ h2{margin-bottom:15px;}
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
   margin-bottom:25px;
 }
-
 .form-group{
   margin-bottom:15px;
 }
-
 label{
   font-weight:bold;
   display:block;
   margin-bottom:5px;
 }
-
 input{
   width:100%;
   padding:8px;
@@ -38,13 +33,11 @@ input{
   border:1px solid #ccc;
   transition:0.3s;
 }
-
 input:focus{
   border-color:#4CAF50;
   outline:none;
   box-shadow:0 0 5px rgba(76,175,80,0.3);
 }
-
 button{
   padding:8px 15px;
   background:#4CAF50;
@@ -54,32 +47,25 @@ button{
   cursor:pointer;
   margin-top:5px;
 }
-
 button.secondary{background:#2196F3;}
 button:hover{opacity:0.9;}
-
 table{
   border-collapse:collapse;
   width:100%;
   margin-top:10px;
 }
-
 th,td{
   border:1px solid #ddd;
   padding:8px;
 }
-
 th{background:#eee;}
-
 .badge{
   padding:4px 8px;
   border-radius:4px;
   font-size:12px;
 }
-
 .online{background:#4CAF50;color:#fff;}
 .offline{background:#f44336;color:#fff;}
-
 pre{
   background:#f1f1f1;
   padding:10px;
@@ -93,7 +79,7 @@ pre{
 
 <h2>Telegram Admin Dashboard</h2>
 
-<!-- ================= ACCOUNTS ================= -->
+<!-- ACCOUNTS -->
 <div class="card">
 <h3>Accounts</h3>
 <table>
@@ -104,7 +90,7 @@ pre{
 </table>
 </div>
 
-<!-- ================= GROUPS ================= -->
+<!-- GROUPS -->
 <div class="card">
 <h3>My Groups</h3>
 <table>
@@ -115,24 +101,18 @@ pre{
 </table>
 </div>
 
-<!-- ================= SOURCE & TARGET FORM ================= -->
+<!-- SOURCE & TARGET FORM -->
 <div class="card">
 <h3>Group Processing Form</h3>
 
 <div class="form-group">
 <label for="sourceGroup">Source Group</label>
-<input type="text"
-       id="sourceGroup"
-       placeholder="Enter source group username or ID"
-       required>
+<input type="text" id="sourceGroup" placeholder="Enter source group username or ID" required>
 </div>
 
 <div class="form-group">
 <label for="targetGroup">Target Group</label>
-<input type="text"
-       id="targetGroup"
-       placeholder="Enter target group username or ID"
-       required>
+<input type="text" id="targetGroup" placeholder="Enter target group username or ID" required>
 </div>
 
 <button onclick="submitGroups()">Submit</button>
@@ -142,7 +122,7 @@ pre{
 
 </div>
 
-<!-- ================= EXCEL UPLOAD ================= -->
+<!-- UPLOAD EXCEL -->
 <div class="card">
 <h3>Upload Excel (Preview Only)</h3>
 
@@ -162,70 +142,69 @@ let groupData=[];
 
 // Load Accounts
 async function loadAccounts(){
-  const res=await fetch('/accounts');
-  accountData=await res.json();
-  const tbody=document.getElementById('accounts');
-  tbody.innerHTML='';
-  accountData.forEach(a=>{
-    tbody.innerHTML+=`
-      <tr>
-        <td>${a.name}</td>
-        <td>${a.username}</td>
-        <td>
-          <span class="badge ${a.status==='online'?'online':'offline'}">
-            ${a.status}
-          </span>
-        </td>
-      </tr>`;
-  });
+  try{
+    const res = await fetch('/accounts');
+    const data = await res.json();
+    accountData = data;
+    const tbody = document.getElementById('accounts');
+    tbody.innerHTML = '';
+    data.forEach(a=>{
+      tbody.innerHTML+=`
+        <tr>
+          <td>${a.name}</td>
+          <td>${a.username}</td>
+          <td><span class="badge ${a.status==='online'?'online':'offline'}">${a.status}</span></td>
+        </tr>`;
+    });
+  } catch(e){ console.error("Load accounts error:", e); }
 }
 
 // Load Groups
 async function loadGroups(){
-  const res=await fetch('/groups');
-  groupData=await res.json();
-  const tbody=document.getElementById('groups');
-  tbody.innerHTML='';
-  groupData.forEach(g=>{
-    tbody.innerHTML+=`
-      <tr>
-        <td>${g.title}</td>
-        <td>${g.id}</td>
-        <td>${g.username}</td>
-        <td>
-          <button onclick="generateLink('${g.id}')">Invite Link</button>
-          <button class="secondary" onclick="exportMembers('${g.id}')">Export Members</button>
-        </td>
-      </tr>`;
-  });
+  try{
+    const res = await fetch('/groups');
+    const data = await res.json();
+    groupData = data;
+    const tbody = document.getElementById('groups');
+    tbody.innerHTML='';
+    data.forEach(g=>{
+      tbody.innerHTML+=`
+        <tr>
+          <td>${g.title}</td>
+          <td>${g.id}</td>
+          <td>${g.username}</td>
+          <td>
+            <button onclick="generateLink('${g.id}')">Invite Link</button>
+            <button class="secondary" onclick="exportMembers('${g.id}')">Export Members</button>
+          </td>
+        </tr>`;
+    });
+  } catch(e){ console.error("Load groups error:", e); }
 }
 
 // Submit Source & Target
 async function submitGroups(){
-  const source=document.getElementById('sourceGroup').value.trim();
-  const target=document.getElementById('targetGroup').value.trim();
-
-  if(!source || !target){
-    alert("Please fill both fields");
-    return;
-  }
-
-  const res=await fetch('/process-groups',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({source,target})
-  });
-
-  const data=await res.json();
-  document.getElementById('responseBox').textContent=
-    JSON.stringify(data,null,2);
+  const source = document.getElementById('sourceGroup').value.trim();
+  const target = document.getElementById('targetGroup').value.trim();
+  if(!source || !target){ alert("Please fill both fields"); return; }
+  try{
+    const res = await fetch('/process-groups',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({source,target})
+    });
+    const data = await res.json();
+    document.getElementById('responseBox').textContent = JSON.stringify(data,null,2);
+  } catch(e){ console.error("Process groups error:", e); }
 }
 
 // Generate Invite Link
 async function generateLink(id){
-  const res=await fetch('/generate-link?groupId='+id);
-  const data=await res.json();
-  alert(data.link ? "Invite Link: "+data.link : "Error: "+data.error);
+  try{
+    const res = await fetch('/generate-link?groupId='+id);
+    const data = await res.json();
+    alert(data.link ? "Invite Link: "+data.link : "Error: "+data.error);
+  } catch(e){ console.error(e); }
 }
 
 // Export Members
@@ -233,28 +212,26 @@ function exportMembers(id){
   window.location='/export-members?groupId='+id;
 }
 
-// Upload Excel Preview
+// Upload Excel
 async function uploadExcel(){
-  const file=document.getElementById('excelFile').files[0];
+  const file = document.getElementById('excelFile').files[0];
   if(!file) return alert("Select Excel file");
-
-  const formData=new FormData();
+  const formData = new FormData();
   formData.append("file",file);
-
-  const res=await fetch('/upload',{
-    method:"POST",
-    body:formData
-  });
-
-  const data=await res.json();
-  document.getElementById('excelPreview').textContent=
-    JSON.stringify(data,null,2);
+  try{
+    const res = await fetch('/upload',{
+      method:"POST",
+      body: formData
+    });
+    const data = await res.json();
+    document.getElementById('excelPreview').textContent = JSON.stringify(data,null,2);
+  } catch(e){ console.error("Upload error:", e); }
 }
 
 // Init
 loadAccounts();
 loadGroups();
-setInterval(()=>{loadAccounts();loadGroups();},10000);
+setInterval(()=>{loadAccounts(); loadGroups();},10000);
 </script>
 
 </body>
