@@ -63,11 +63,10 @@ app.get('/api/groups/:accountIndex', async (req, res) => {
     const client = clients[idx].client;
 
     try {
-        // Explicit limit + safe handling
         const dialogs = await client.getDialogs({ limit: 1000 });
         const groups = (dialogs || [])
             .filter(d => d && (d.isGroup || d.isChannel))
-            .map(g => ({ id: g.id, title: g.title || "No title" }));
+            .map(g => ({ id: g.id, title: g.title || "No title", username: g.username || "" }));
         res.json({ success: true, groups });
     } catch (err) {
         console.error(err);
@@ -85,35 +84,48 @@ app.post('/api/addMember', async (req, res) => {
 
     try {
         let users = [];
+        let sourceEntity, destEntity;
 
-        // Detect private vs public link
-        if (sourceLink.includes('joinchat')) {
-            try {
-                const invite = await client.invoke(new Api.messages.CheckChatInvite({ hash: sourceLink.split('/').pop() }));
+        // Get source entity
+        try {
+            if (sourceLink.includes('joinchat')) {
+                const hash = sourceLink.split('/').pop();
+                const invite = await client.invoke(new Api.messages.CheckChatInvite({ hash }));
                 users = invite.users || [];
-            } catch (err) {
-                if (err.message.includes("INVITE_HASH_EXPIRED")) return res.json({ success: false, message: 'Source link expired' });
-                throw err;
+            } else {
+                sourceEntity = await client.getEntity(sourceLink);
+                users = await client.getParticipants(sourceEntity);
             }
-        } else {
-            const source = await client.getEntity(sourceLink);
-            users = await client.getParticipants(source);
+        } catch (err) {
+            return res.json({ success: false, message: 'Cannot find source group: ' + err.message });
         }
 
-        const dest = await client.getEntity(destinationLink);
+        // Get destination entity
+        try {
+            if (destinationLink.includes('joinchat')) {
+                const hash = destinationLink.split('/').pop();
+                destEntity = await client.invoke(new Api.messages.CheckChatInvite({ hash }));
+                destEntity = destEntity.chat || destEntity;
+            } else {
+                destEntity = await client.getEntity(destinationLink);
+            }
+        } catch (err) {
+            return res.json({ success: false, message: 'Cannot find destination group: ' + err.message });
+        }
 
-        let success = 0, failed = 0;
+        // Add members one by one
+        let successCount = 0, failCount = 0;
         for (const user of users) {
             try {
-                await client.addChatUser(dest, user.id, { fwdLimit: 0 });
-                success++;
+                await client.addChatUser(destEntity, user.id, { fwdLimit: 0 });
+                successCount++;
             } catch (err) {
-                failed++;
+                failCount++;
             }
             await new Promise(r => setTimeout(r, wait));
         }
 
-        res.json({ success: true, message: `Added: ${success}, Failed: ${failed}` });
+        res.json({ success: true, message: `Added: ${successCount}, Failed: ${failCount}` });
 
     } catch (err) {
         console.error(err);
