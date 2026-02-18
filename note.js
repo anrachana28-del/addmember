@@ -2,15 +2,16 @@ require('dotenv').config();
 const express = require('express');
 const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
+const { Api } = require('telegram');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 let clients = [];
-let stopFlag = false;
 
-// Load accounts from .env
+// Load accounts
 for (let i = 1; i <= 5; i++) {
   if (process.env[`API_ID_${i}`]) {
     clients.push({
@@ -18,141 +19,107 @@ for (let i = 1; i <= 5; i++) {
       apiId: Number(process.env[`API_ID_${i}`]),
       apiHash: process.env[`API_HASH_${i}`],
       session: process.env[`SESSION_${i}`],
-      status: 'offline',
       client: null,
       username: '-',
-      phone: '-'
+      status: 'offline'
     });
   }
 }
 
-// Connect all clients
+// Connect accounts
 (async () => {
   for (let c of clients) {
     try {
-      const client = new TelegramClient(new StringSession(c.session), c.apiId, c.apiHash, { connectionRetries: 5 });
+      const client = new TelegramClient(
+        new StringSession(c.session),
+        c.apiId,
+        c.apiHash,
+        { connectionRetries: 5 }
+      );
       await client.connect();
-      c.client = client;
       const me = await client.getMe();
+      c.client = client;
       c.username = me.username || '-';
-      c.phone = me.phone || '-';
       c.status = 'online';
       console.log(`${c.name} connected`);
     } catch (err) {
       c.status = 'error';
-      console.log(`${c.name} error: ${err.message}`);
+      console.log(`${c.name} error`);
     }
   }
 })();
 
-// Serve frontend
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.use(express.json());
+app.use(express.static(__dirname));
 
-// Accounts admin page
+// Accounts
 app.get('/accounts', (req, res) => {
   res.json(clients.map(c => ({
     name: c.name,
     username: c.username,
-    phone: c.phone,
     status: c.status
   })));
 });
 
-// Groups page
+// Groups
 app.get('/groups', async (req, res) => {
   let allGroups = [];
   for (let c of clients) {
     if (!c.client) continue;
     try {
       const dialogs = await c.client.getDialogs();
-      const groups = dialogs.filter(d => d.isGroup).map(g => ({
-        title: g.name,
-        id: g.id.toString(),
-        username: g.username || '-',
-        role: g.adminRights ? "Admin" : "Member"
-      }));
-      allGroups = allGroups.concat(groups);
-    } catch (e) { }
+      dialogs.filter(d => d.isGroup).forEach(g => {
+        allGroups.push({
+          title: g.name,
+          id: g.id.toString(),
+          username: g.username || '-'
+        });
+      });
+    } catch {}
   }
   res.json(allGroups);
 });
 
-// SSE add members real
-app.get('/add-members-stream', async (req, res) => {
-  const { source, target } = req.query;
-  res.set({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
-  });
-  res.flushHeaders();
+// Generate Invite Link
+app.get('/generate-link', async (req, res) => {
+  const { groupId } = req.query;
+  const client = clients.find(c => c.client)?.client;
+  if (!client) return res.json({ error: "No client online" });
 
-  stopFlag = false;
-
-  // Gather members from source group
-  let allMembers = [];
-  for (let c of clients) {
-    if (!c.client) continue;
-    try {
-      const participants = await c.client.getParticipants(source); // source: username/link
-      participants.forEach(p => {
-        if (p.username) allMembers.push({ username: p.username });
-      });
-    } catch (e) {
-      console.log(`Error fetching source members: ${e.message}`);
-    }
+  try {
+    const result = await client.invoke(
+      new Api.messages.ExportChatInvite({
+        peer: groupId
+      })
+    );
+    res.json({ link: result.link });
+  } catch (err) {
+    res.json({ error: err.message });
   }
-
-  let added = 0;
-
-  outer: for (let member of allMembers) {
-    if (stopFlag) break outer;
-
-    for (let c of clients) {
-      if (!c.client) continue;
-
-      let status = '';
-      try {
-        // Check if already in target group
-        // const targetParticipants = await c.client.getParticipants(target);
-        // const alreadyJoined = targetParticipants.find(u => u.username === member.username);
-        const alreadyJoined = false; // placeholder
-        if (alreadyJoined) {
-          status = "រួចហើយ";
-        } else {
-          // await c.client.addMember(target, member.username); // real add
-          status = "បានបញ្ចូល";
-        }
-      } catch (err) {
-        status = "បរាជ័យ";
-      }
-
-      added++;
-      const percent = Math.floor((added / allMembers.length) * 100);
-      res.write(`data: ${JSON.stringify({
-        member: member.username,
-        status,
-        account: c.username,
-        source,
-        target,
-        percent
-      })}\n\n`);
-
-      // delay 2-3s per member to avoid Telegram limits
-      await new Promise(r => setTimeout(r, 2000));
-    }
-  }
-
-  res.write(`data: ${JSON.stringify({ member: "-", status: "បានបញ្ចប់!", account: "-", source, target, percent: 100 })}\n\n`);
-  res.end();
 });
 
-// Stop endpoint
-app.get('/stop', (req, res) => {
-  stopFlag = true;
-  res.send("Stopped");
+// Export Members CSV
+app.get('/export-members', async (req, res) => {
+  const { groupId } = req.query;
+  const client = clients.find(c => c.client)?.client;
+  if (!client) return res.send("No client");
+
+  try {
+    const participants = await client.getParticipants(groupId);
+    let csv = "username,id\n";
+    participants.forEach(p => {
+      csv += `${p.username || ''},${p.id}\n`;
+    });
+
+    const filePath = path.join(__dirname, 'members.csv');
+    fs.writeFileSync(filePath, csv);
+
+    res.download(filePath);
+  } catch (err) {
+    res.send("Error exporting members");
+  }
 });
 
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+app.listen(PORT, () =>
+  console.log(`Server running http://localhost:${PORT}`)
+);
