@@ -1,24 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="km">
 <head>
 <meta charset="UTF-8">
-<title>Telegram Multi-Account Add</title>
+<title>Telegram Multi-Account Add Members</title>
 <style>
-body{font-family:Arial;padding:20px}
-input,button{padding:8px;margin:5px 0;width:300px}
-#bar{width:100%;background:#eee;height:25px;border-radius:5px}
+body {font-family: Arial; padding: 20px; background: #f0f2f5;}
+h2 {color: #333;}
+input, button {padding: 8px; margin: 5px 0; width: 300px; border-radius:5px; border:1px solid #ccc;}
+button {cursor:pointer; background:#4CAF50; color:white;}
+button.stop {background:#f44336;}
+button.restart {background:#2196F3;}
+#accounts {margin:10px 0;}
+.account {padding:5px; margin:3px 0; border-radius:5px; background:#eee;}
+#bar{width:100%;background:#ddd;height:25px;border-radius:5px;margin-top:10px;}
 #progress{height:25px;background:#4CAF50;width:0%;border-radius:5px}
-pre{background:#f4f4f4;height:300px;overflow:auto;padding:10px}
+pre{background:#fff;height:200px;overflow:auto;padding:10px;border:1px solid #ccc;}
 </style>
 </head>
 <body>
 
 <h2>Telegram Multi-Account Add Members</h2>
 
+<div id="accounts"></div>
+
 <form id="form">
-  <input type="text" id="source" placeholder="Source Group" required><br>
-  <input type="text" id="target" placeholder="Target Group" required><br>
-  <button type="submit">Start Adding</button>
+  <input type="text" id="source" placeholder="Group ដើម" required><br>
+  <input type="text" id="target" placeholder="Group ទទួល" required><br>
+  <button type="submit">ចាប់ផ្តើម</button>
+  <button type="button" class="stop" id="stopBtn">បញ្ឈប់</button>
+  <button type="button" class="restart" id="restartBtn">Restart</button>
 </form>
 
 <div id="bar"><div id="progress"></div></div>
@@ -28,15 +38,31 @@ pre{background:#f4f4f4;height:300px;overflow:auto;padding:10px}
 const form = document.getElementById('form');
 const log = document.getElementById('log');
 const progressBar = document.getElementById('progress');
+const accountsDiv = document.getElementById('accounts');
+const stopBtn = document.getElementById('stopBtn');
+const restartBtn = document.getElementById('restartBtn');
 
-form.addEventListener('submit', async e=>{
+let evt = null;
+
+async function loadAccounts(){
+  const res = await fetch('/accounts');
+  const data = await res.json();
+  accountsDiv.innerHTML = '';
+  data.forEach(a=>{
+    const div = document.createElement('div');
+    div.className='account';
+    div.textContent = `${a.name} - ${a.status}`;
+    accountsDiv.appendChild(div);
+  });
+}
+
+form.addEventListener('submit', e=>{
   e.preventDefault();
-  log.textContent = "Starting...\n";
-
+  log.textContent = "ចាប់ផ្តើម...\n";
   const source = document.getElementById('source').value;
   const target = document.getElementById('target').value;
 
-  const evt = new EventSource(`/add-members-stream?source=${source}&target=${target}`);
+  evt = new EventSource(`/add-members-stream?source=${source}&target=${target}`);
   evt.onmessage = e => {
     const data = JSON.parse(e.data);
     log.textContent += data.message + "\n";
@@ -47,6 +73,19 @@ form.addEventListener('submit', async e=>{
     evt.close();
   };
 });
+
+stopBtn.addEventListener('click', ()=>{
+  if(evt){ evt.close(); log.textContent += "Stopped\n"; fetch('/stop'); }
+});
+
+restartBtn.addEventListener('click', ()=>{
+  if(evt){ evt.close(); }
+  log.textContent += "Restarting...\n";
+  form.dispatchEvent(new Event('submit'));
+});
+
+loadAccounts();
+setInterval(loadAccounts,5000);
 </script>
 
 </body>
