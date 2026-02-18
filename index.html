@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Telegram Multi-Account Add</title>
+<style>
+body{font-family:Arial;padding:20px}
+input,button{padding:8px;margin:5px 0;width:300px}
+#bar{width:100%;background:#eee;height:25px;border-radius:5px}
+#progress{height:25px;background:#4CAF50;width:0%;border-radius:5px}
+pre{background:#f4f4f4;height:300px;overflow:auto;padding:10px}
+</style>
+</head>
+<body>
+
+<h2>Telegram Multi-Account Add Members</h2>
+
+<form id="form">
+  <input type="text" id="source" placeholder="Source Group" required><br>
+  <input type="text" id="target" placeholder="Target Group" required><br>
+  <button type="submit">Start Adding</button>
+</form>
+
+<div id="bar"><div id="progress"></div></div>
+<pre id="log"></pre>
+
+<script>
+const form = document.getElementById('form');
+const log = document.getElementById('log');
+const progressBar = document.getElementById('progress');
+
+form.addEventListener('submit', async e=>{
+  e.preventDefault();
+  log.textContent = "Starting...\n";
+
+  const source = document.getElementById('source').value;
+  const target = document.getElementById('target').value;
+
+  const evt = new EventSource(`/add-members-stream?source=${source}&target=${target}`);
+  evt.onmessage = e => {
+    const data = JSON.parse(e.data);
+    log.textContent += data.message + "\n";
+    progressBar.style.width = data.percent + "%";
+  };
+  evt.onerror = () => {
+    log.textContent += "Connection closed.\n";
+    evt.close();
+  };
+});
+</script>
+
+</body>
+</html>
