@@ -2,90 +2,156 @@
 <html lang="km">
 <head>
 <meta charset="UTF-8">
-<title>Telegram Multi-Account Add Members</title>
+<title>Telegram Dashboard</title>
 <style>
-body {font-family: Arial; padding: 20px; background: #f0f2f5;}
-h2 {color: #333;}
-input, button {padding: 8px; margin: 5px 0; width: 300px; border-radius:5px; border:1px solid #ccc;}
-button {cursor:pointer; background:#4CAF50; color:white;}
-button.stop {background:#f44336;}
-button.restart {background:#2196F3;}
-#accounts {margin:10px 0;}
-.account {padding:5px; margin:3px 0; border-radius:5px; background:#eee;}
+body{font-family:Arial;padding:20px;background:#f0f2f5;}
+h2{color:#333;}
+input,button{padding:8px;margin:5px 0;width:300px;border-radius:5px;border:1px solid #ccc;}
+button{cursor:pointer;background:#4CAF50;color:white;}
+button.stop{background:#f44336;}
+button.restart{background:#2196F3;}
+.tabs{margin-bottom:10px;}
+.tabs button{padding:8px 12px;margin-right:5px;border:none;border-radius:5px;cursor:pointer;}
+.tabs button.active{background:#4CAF50;color:white;}
+table{border-collapse:collapse;width:100%;margin-top:10px;}
+th,td{border:1px solid #ccc;padding:5px;text-align:left;}
+th{background:#f4f4f4;}
 #bar{width:100%;background:#ddd;height:25px;border-radius:5px;margin-top:10px;}
-#progress{height:25px;background:#4CAF50;width:0%;border-radius:5px}
-pre{background:#fff;height:200px;overflow:auto;padding:10px;border:1px solid #ccc;}
+#progress{height:25px;background:#4CAF50;width:0%;border-radius:5px;}
 </style>
 </head>
 <body>
 
-<h2>Telegram Multi-Account Add Members</h2>
+<h2>Telegram Admin Dashboard</h2>
 
-<div id="accounts"></div>
+<div class="tabs">
+  <button class="tabBtn active" data-tab="accounts">List Account Admin</button>
+  <button class="tabBtn" data-tab="groups">List My Group</button>
+  <button class="tabBtn" data-tab="addmembers">Add Members</button>
+</div>
 
-<form id="form">
-  <input type="text" id="source" placeholder="Group ដើម" required><br>
-  <input type="text" id="target" placeholder="Group ទទួល" required><br>
-  <button type="submit">ចាប់ផ្តើម</button>
-  <button type="button" class="stop" id="stopBtn">បញ្ឈប់</button>
-  <button type="button" class="restart" id="restartBtn">Restart</button>
-</form>
+<!-- Accounts Page -->
+<div id="accountsPage" class="tabPage">
+  <table>
+    <thead>
+      <tr><th>Account Name</th><th>Username</th><th>Phone</th><th>Status</th></tr>
+    </thead>
+    <tbody id="accountsTable"></tbody>
+  </table>
+</div>
 
-<div id="bar"><div id="progress"></div></div>
-<pre id="log"></pre>
+<!-- Groups Page -->
+<div id="groupsPage" class="tabPage" style="display:none;">
+  <table>
+    <thead>
+      <tr><th>Group Name</th><th>Group ID</th><th>Username</th><th>Role</th></tr>
+    </thead>
+    <tbody id="groupsTable"></tbody>
+  </table>
+</div>
+
+<!-- Add Members Page -->
+<div id="addmembersPage" class="tabPage" style="display:none;">
+  <form id="form">
+    <input type="text" id="source" placeholder="Group ដើម" required><br>
+    <input type="text" id="target" placeholder="Group ទទួល" required><br>
+    <button type="submit">ចាប់ផ្តើម</button>
+    <button type="button" class="stop" id="stopBtn">បញ្ឈប់</button>
+    <button type="button" class="restart" id="restartBtn">Restart</button>
+  </form>
+  <div id="bar"><div id="progress"></div></div>
+  <table>
+    <thead>
+      <tr>
+        <th>Member Username</th>
+        <th>Status</th>
+        <th>Account Username</th>
+        <th>Source Group</th>
+        <th>Target Group</th>
+      </tr>
+    </thead>
+    <tbody id="logTable"></tbody>
+  </table>
+</div>
 
 <script>
-const form = document.getElementById('form');
-const log = document.getElementById('log');
-const progressBar = document.getElementById('progress');
-const accountsDiv = document.getElementById('accounts');
-const stopBtn = document.getElementById('stopBtn');
-const restartBtn = document.getElementById('restartBtn');
+const tabs = document.querySelectorAll('.tabBtn');
+const pages = document.querySelectorAll('.tabPage');
 
-let evt = null;
+tabs.forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    tabs.forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.getAttribute('data-tab');
+    pages.forEach(p=>{
+      p.style.display = (p.id.startsWith(target))?'block':'none';
+    });
+  });
+});
 
+// Load accounts
 async function loadAccounts(){
   const res = await fetch('/accounts');
   const data = await res.json();
-  accountsDiv.innerHTML = '';
+  const tbody = document.getElementById('accountsTable');
+  tbody.innerHTML='';
   data.forEach(a=>{
-    const div = document.createElement('div');
-    div.className='account';
-    div.textContent = `${a.name} - ${a.status}`;
-    accountsDiv.appendChild(div);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${a.name}</td><td>${a.username}</td><td>${a.phone}</td><td>${a.status}</td>`;
+    tbody.appendChild(tr);
   });
 }
 
+// Load groups
+async function loadGroups(){
+  const res = await fetch('/groups');
+  const data = await res.json();
+  const tbody=document.getElementById('groupsTable');
+  tbody.innerHTML='';
+  data.forEach(g=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${g.title}</td><td>${g.id}</td><td>${g.username}</td><td>${g.role}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// Add Members logic
+const form=document.getElementById('form');
+const progressBar=document.getElementById('progress');
+const logTable=document.getElementById('logTable');
+const stopBtn=document.getElementById('stopBtn');
+const restartBtn=document.getElementById('restartBtn');
+
+let evt = null;
+
 form.addEventListener('submit', e=>{
   e.preventDefault();
-  log.textContent = "ចាប់ផ្តើម...\n";
-  const source = document.getElementById('source').value;
-  const target = document.getElementById('target').value;
+  logTable.innerHTML='';
+  const source=document.getElementById('source').value;
+  const target=document.getElementById('target').value;
 
-  evt = new EventSource(`/add-members-stream?source=${source}&target=${target}`);
-  evt.onmessage = e => {
-    const data = JSON.parse(e.data);
-    log.textContent += data.message + "\n";
-    progressBar.style.width = data.percent + "%";
+  evt=new EventSource(`/add-members-stream?source=${source}&target=${target}`);
+  evt.onmessage=e=>{
+    const data=JSON.parse(e.data);
+    progressBar.style.width=data.percent+"%";
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${data.member||'-'}</td><td>${data.status||'-'}</td><td>${data.account||'-'}</td><td>${data.source||'-'}</td><td>${data.target||'-'}</td>`;
+    logTable.appendChild(tr);
   };
-  evt.onerror = () => {
-    log.textContent += "Connection closed.\n";
-    evt.close();
-  };
+  evt.onerror=()=>{ evt.close(); };
 });
 
 stopBtn.addEventListener('click', ()=>{
-  if(evt){ evt.close(); log.textContent += "Stopped\n"; fetch('/stop'); }
+  if(evt){ evt.close(); fetch('/stop'); }
 });
-
 restartBtn.addEventListener('click', ()=>{
   if(evt){ evt.close(); }
-  log.textContent += "Restarting...\n";
   form.dispatchEvent(new Event('submit'));
 });
 
 loadAccounts();
-setInterval(loadAccounts,5000);
+loadGroups();
+setInterval(()=>{ loadAccounts(); loadGroups(); },5000);
 </script>
 
 </body>
