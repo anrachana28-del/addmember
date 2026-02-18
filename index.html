@@ -1,91 +1,79 @@
 <!DOCTYPE html>
-<html lang="km">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Telegram Dashboard</title>
+<title>Telegram Admin Dashboard</title>
 <style>
-body{font-family:Arial;padding:20px;background:#f0f2f5;}
-h2{color:#333;}
-input,button{padding:8px;margin:5px 0;width:300px;border-radius:5px;border:1px solid #ccc;}
-button{cursor:pointer;background:#4CAF50;color:white;}
-button.stop{background:#f44336;}
-button.restart{background:#2196F3;}
+body{font-family:Arial;padding:20px;background:#f4f6f9;}
+button{padding:6px 12px;margin:5px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;}
 table{border-collapse:collapse;width:100%;margin-top:10px;}
-th,td{border:1px solid #ccc;padding:5px;text-align:left;}
-th{background:#f4f4f4;}
-#bar{width:100%;background:#ddd;height:25px;border-radius:5px;margin-top:10px;}
-#progress{height:25px;background:#4CAF50;width:0%;border-radius:5px;transition:width 0.3s;}
+th,td{border:1px solid #ddd;padding:6px;}
+th{background:#eee;}
 </style>
 </head>
 <body>
 
-<h2>Telegram Add Members Dashboard</h2>
+<h2>Telegram Admin Dashboard</h2>
 
-<form id="form">
-  <input type="text" id="source" placeholder="Group ដើម (username/link)" required><br>
-  <input type="text" id="target" placeholder="Group ទទួល (username/link)" required><br>
-  <button type="submit">ចាប់ផ្តើម</button>
-  <button type="button" class="stop" id="stopBtn">បញ្ឈប់</button>
-  <button type="button" class="restart" id="restartBtn">Restart</button>
-</form>
-
-<div id="bar"><div id="progress"></div></div>
-
+<h3>Accounts</h3>
 <table>
-<thead>
-<tr>
-  <th>Member Username</th>
-  <th>Status</th>
-  <th>Account</th>
-  <th>Source Group</th>
-  <th>Target Group</th>
-</tr>
-</thead>
-<tbody id="logTable"></tbody>
+<thead><tr><th>Name</th><th>Username</th><th>Status</th></tr></thead>
+<tbody id="accounts"></tbody>
+</table>
+
+<h3>My Groups</h3>
+<table>
+<thead><tr><th>Title</th><th>ID</th><th>Username</th><th>Actions</th></tr></thead>
+<tbody id="groups"></tbody>
 </table>
 
 <script>
-const form = document.getElementById('form');
-const logTable = document.getElementById('logTable');
-const progressBar = document.getElementById('progress');
-const stopBtn = document.getElementById('stopBtn');
-const restartBtn = document.getElementById('restartBtn');
-
-let evt = null;
-
-function startAdding(){
-  const source = document.getElementById('source').value;
-  const target = document.getElementById('target').value;
-  logTable.innerHTML = '';
-  progressBar.style.width = '0%';
-
-  evt = new EventSource(`/add-members-stream?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`);
-  evt.onmessage = e=>{
-    const data = JSON.parse(e.data);
-    progressBar.style.width = data.percent + '%';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${data.member||'-'}</td><td>${data.status||'-'}</td><td>${data.account||'-'}</td><td>${data.source||'-'}</td><td>${data.target||'-'}</td>`;
-    logTable.appendChild(tr);
-  };
-  evt.onerror = ()=>{
-    if(evt){ evt.close(); evt=null; }
-  };
+async function loadAccounts(){
+  const res=await fetch('/accounts');
+  const data=await res.json();
+  const tbody=document.getElementById('accounts');
+  tbody.innerHTML='';
+  data.forEach(a=>{
+    tbody.innerHTML+=`<tr>
+      <td>${a.name}</td>
+      <td>${a.username}</td>
+      <td>${a.status}</td>
+    </tr>`;
+  });
 }
 
-form.addEventListener('submit', e=>{
-  e.preventDefault();
-  if(evt){ evt.close(); evt=null; }
-  startAdding();
-});
+async function loadGroups(){
+  const res=await fetch('/groups');
+  const data=await res.json();
+  const tbody=document.getElementById('groups');
+  tbody.innerHTML='';
+  data.forEach(g=>{
+    tbody.innerHTML+=`<tr>
+      <td>${g.title}</td>
+      <td>${g.id}</td>
+      <td>${g.username}</td>
+      <td>
+        <button onclick="generateLink('${g.id}')">Invite Link</button>
+        <button onclick="exportMembers('${g.id}')">Export Members</button>
+      </td>
+    </tr>`;
+  });
+}
 
-stopBtn.addEventListener('click', ()=>{
-  if(evt){ evt.close(); evt=null; fetch('/stop'); }
-});
+async function generateLink(id){
+  const res=await fetch('/generate-link?groupId='+id);
+  const data=await res.json();
+  if(data.link) alert("Invite Link: "+data.link);
+  else alert("Error: "+data.error);
+}
 
-restartBtn.addEventListener('click', ()=>{
-  if(evt){ evt.close(); evt=null; }
-  startAdding();
-});
+function exportMembers(id){
+  window.location='/export-members?groupId='+id;
+}
+
+loadAccounts();
+loadGroups();
+setInterval(()=>{loadAccounts();loadGroups();},5000);
 </script>
 
 </body>
