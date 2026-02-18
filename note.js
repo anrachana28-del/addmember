@@ -1,8 +1,6 @@
-require('dotenv').config();
+require('dotenv').config(); // load .env
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
 const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { Api } = require('telegram');
@@ -10,137 +8,69 @@ const { Api } = require('telegram');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// JSON parsing
 app.use(express.json());
+app.use(express.static(__dirname));
 
-// File upload
-const upload = multer({ dest: 'uploads/' });
+// Load credentials from .env
+const apiId1 = Number(process.env.API_ID_1);
+const apiHash1 = process.env.API_HASH_1;
+const session1 = process.env.SESSION_1; // string session
 
-// ===== Telegram Accounts =====
-let clients = [];
+// Initialize Telegram client
+const client1 = new TelegramClient(new StringSession(session1), apiId1, apiHash1, {
+    connectionRetries: 5,
+});
 
-// Load accounts from .env
-for (let i=1; i<=5; i++){
-  if(process.env[`API_ID_${i}`]){
-    clients.push({
-      name: `Account ${i}`,
-      apiId: Number(process.env[`API_ID_${i}`]),
-      apiHash: process.env[`API_HASH_${i}`],
-      session: process.env[`SESSION_${i}`],
-      client: null,
-      username: '-',
-      status: 'offline'
+async function startClient() {
+    await client1.start({
+        // Since we already have a session, login is not required
+        phoneNumber: async () => '', 
+        password: async () => '',
+        phoneCode: async () => '',
+        onError: (err) => console.log(err),
     });
-  }
+    console.log('Telegram Client 1 Started');
 }
 
-// Connect Telegram clients
-(async ()=>{
-  for(let c of clients){
-    try{
-      const client = new TelegramClient(
-        new StringSession(c.session),
-        c.apiId,
-        c.apiHash,
-        { connectionRetries: 5 }
-      );
-      await client.connect();
-      const me = await client.getMe();
-      c.client = client;
-      c.username = me.username || '-';
-      c.status = 'online';
-      console.log(`${c.name} connected`);
-    } catch(err){
-      c.status = 'error';
-      console.log(`${c.name} failed`);
+startClient();
+
+// Serve index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Add members API
+app.post('/addMember', async (req, res) => {
+    const { sourceLink, destinationLink, delay } = req.body;
+
+    try {
+        // Get source group info
+        const source = await client1.invoke(
+            new Api.messages.CheckChatInvite({ hash: sourceLink.split('/').pop() })
+        );
+
+        const users = source.users || [];
+        console.log('Users to add:', users.length);
+
+        const dest = await client1.getEntity(destinationLink);
+
+        let success = 0, failed = 0;
+        for (const user of users) {
+            try {
+                await client1.addChatUser(dest, user.id, { fwdLimit: 0 });
+                success++;
+            } catch (err) {
+                console.log('Failed to add:', user.username || user.id, err.message);
+                failed++;
+            }
+            await new Promise(r => setTimeout(r, delay || 5000)); // default 5 sec
+        }
+
+        res.json({ success: true, message: `Added: ${success}, Failed: ${failed}` });
+
+    } catch (error) {
+        res.json({ success: false, message: error.message });
     }
-  }
-})();
-
-// ===== Serve index.html =====
-app.get('/', (req,res)=>{
-  res.sendFile(path.join(__dirname,'index.html'));
 });
 
-// ===== Routes =====
-
-// Accounts
-app.get('/accounts', (req,res)=>{
-  res.json(clients.map(c=>({
-    name:c.name,
-    username:c.username,
-    status:c.status
-  })));
-});
-
-// Groups
-app.get('/groups', async (req,res)=>{
-  let allGroups=[];
-  for(let c of clients){
-    if(!c.client) continue;
-    try{
-      const dialogs = await c.client.getDialogs();
-      dialogs.filter(d=>d.isGroup).forEach(g=>{
-        allGroups.push({
-          title:g.name,
-          id:g.id.toString(),
-          username:g.username || '-'
-        });
-      });
-    }catch{}
-  }
-  res.json(allGroups);
-});
-
-// Generate Invite Link
-app.get('/generate-link', async (req,res)=>{
-  const { groupId } = req.query;
-  const client = clients.find(c=>c.client)?.client;
-  if(!client) return res.json({error:"No client online"});
-  try{
-    const result = await client.invoke(
-      new Api.messages.ExportChatInvite({ peer: groupId })
-    );
-    res.json({ link: result.link });
-  } catch(err){
-    res.json({ error: err.message });
-  }
-});
-
-// Export Members CSV
-app.get('/export-members', async (req,res)=>{
-  const { groupId } = req.query;
-  const client = clients.find(c=>c.client)?.client;
-  if(!client) return res.send("No client online");
-
-  try{
-    const participants = await client.getParticipants(groupId);
-    let csv = "username,id\n";
-    participants.forEach(p=>{
-      csv += `${p.username || ''},${p.id}\n`;
-    });
-    const filePath = path.join(__dirname,'members.csv');
-    fs.writeFileSync(filePath,csv);
-    res.download(filePath,'members.csv',err=>{
-      if(err) console.error(err);
-      fs.unlinkSync(filePath);
-    });
-  } catch(err){
-    res.send("Error exporting members");
-  }
-});
-
-// ===== Process Groups (Mock) =====
-app.post('/process-groups', (req,res)=>{
-  const { source, target } = req.body;
-  res.json({ message:`Processing from ${source} to ${target}` });
-});
-
-// ===== Upload Excel (Preview Only) =====
-app.post('/upload', upload.single('file'), (req,res)=>{
-  if(!req.file) return res.status(400).json({error:"No file uploaded"});
-  res.json({ filename: req.file.originalname });
-});
-
-// ===== Start Server =====
-app.listen(PORT, ()=>console.log(`Server running at http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
