@@ -15,8 +15,8 @@ app.get('/', (req, res) => {
 
 // Config
 const batchSize = 10;        // 10 users per batch
-const minDelay = 4000;       // 4s minimum per user
-const maxDelay = 8000;       // 8s maximum per user
+const minDelay = 10000;       // 4s minimum per user
+const maxDelay = 10000;       // 8s maximum per user
 
 // Load multi-account from .env
 const accounts = [];
@@ -117,3 +117,4 @@ app.get('/add-members-stream', async (req, res) => {
 // Render port
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
