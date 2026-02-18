@@ -2,80 +2,260 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>sss</title>
+<title>Telegram Admin Dashboard</title>
+
 <style>
-body{font-family:Arial;padding:20px;background:#f4f6f9;}
-button{padding:6px 12px;margin:5px;background:#4CAF50;color:#fff;border:none;border-radius:4px;cursor:pointer;}
-table{border-collapse:collapse;width:100%;margin-top:10px;}
-th,td{border:1px solid #ddd;padding:6px;}
+body{
+  font-family:Arial;
+  padding:20px;
+  background:#f4f6f9;
+}
+
+h2{margin-bottom:15px;}
+
+.card{
+  background:#fff;
+  padding:20px;
+  border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom:25px;
+}
+
+.form-group{
+  margin-bottom:15px;
+}
+
+label{
+  font-weight:bold;
+  display:block;
+  margin-bottom:5px;
+}
+
+input{
+  width:100%;
+  padding:8px;
+  border-radius:5px;
+  border:1px solid #ccc;
+  transition:0.3s;
+}
+
+input:focus{
+  border-color:#4CAF50;
+  outline:none;
+  box-shadow:0 0 5px rgba(76,175,80,0.3);
+}
+
+button{
+  padding:8px 15px;
+  background:#4CAF50;
+  color:white;
+  border:none;
+  border-radius:5px;
+  cursor:pointer;
+  margin-top:5px;
+}
+
+button.secondary{background:#2196F3;}
+button:hover{opacity:0.9;}
+
+table{
+  border-collapse:collapse;
+  width:100%;
+  margin-top:10px;
+}
+
+th,td{
+  border:1px solid #ddd;
+  padding:8px;
+}
+
 th{background:#eee;}
+
+.badge{
+  padding:4px 8px;
+  border-radius:4px;
+  font-size:12px;
+}
+
+.online{background:#4CAF50;color:#fff;}
+.offline{background:#f44336;color:#fff;}
+
+pre{
+  background:#f1f1f1;
+  padding:10px;
+  border-radius:5px;
+  max-height:200px;
+  overflow:auto;
+}
 </style>
 </head>
 <body>
 
 <h2>Telegram Admin Dashboard</h2>
 
+<!-- ================= ACCOUNTS ================= -->
+<div class="card">
 <h3>Accounts</h3>
 <table>
-<thead><tr><th>Name</th><th>Username</th><th>Status</th></tr></thead>
+<thead>
+<tr><th>Name</th><th>Username</th><th>Status</th></tr>
+</thead>
 <tbody id="accounts"></tbody>
 </table>
+</div>
 
+<!-- ================= GROUPS ================= -->
+<div class="card">
 <h3>My Groups</h3>
 <table>
-<thead><tr><th>Title</th><th>ID</th><th>Username</th><th>Actions</th></tr></thead>
+<thead>
+<tr><th>Title</th><th>ID</th><th>Username</th><th>Actions</th></tr>
+</thead>
 <tbody id="groups"></tbody>
 </table>
+</div>
+
+<!-- ================= SOURCE & TARGET FORM ================= -->
+<div class="card">
+<h3>Group Processing Form</h3>
+
+<div class="form-group">
+<label for="sourceGroup">Source Group</label>
+<input type="text"
+       id="sourceGroup"
+       placeholder="Enter source group username or ID"
+       required>
+</div>
+
+<div class="form-group">
+<label for="targetGroup">Target Group</label>
+<input type="text"
+       id="targetGroup"
+       placeholder="Enter target group username or ID"
+       required>
+</div>
+
+<button onclick="submitGroups()">Submit</button>
+
+<h4>Response:</h4>
+<pre id="responseBox"></pre>
+
+</div>
+
+<!-- ================= EXCEL UPLOAD ================= -->
+<div class="card">
+<h3>Upload Excel (Preview Only)</h3>
+
+<div class="form-group">
+<label for="excelFile">Select Excel File</label>
+<input type="file" id="excelFile">
+</div>
+
+<button class="secondary" onclick="uploadExcel()">Upload & Preview</button>
+
+<pre id="excelPreview"></pre>
+</div>
 
 <script>
+let accountData=[];
+let groupData=[];
+
+// Load Accounts
 async function loadAccounts(){
   const res=await fetch('/accounts');
-  const data=await res.json();
+  accountData=await res.json();
   const tbody=document.getElementById('accounts');
   tbody.innerHTML='';
-  data.forEach(a=>{
-    tbody.innerHTML+=`<tr>
-      <td>${a.name}</td>
-      <td>${a.username}</td>
-      <td>${a.status}</td>
-    </tr>`;
+  accountData.forEach(a=>{
+    tbody.innerHTML+=`
+      <tr>
+        <td>${a.name}</td>
+        <td>${a.username}</td>
+        <td>
+          <span class="badge ${a.status==='online'?'online':'offline'}">
+            ${a.status}
+          </span>
+        </td>
+      </tr>`;
   });
 }
 
+// Load Groups
 async function loadGroups(){
   const res=await fetch('/groups');
-  const data=await res.json();
+  groupData=await res.json();
   const tbody=document.getElementById('groups');
   tbody.innerHTML='';
-  data.forEach(g=>{
-    tbody.innerHTML+=`<tr>
-      <td>${g.title}</td>
-      <td>${g.id}</td>
-      <td>${g.username}</td>
-      <td>
-        <button onclick="generateLink('${g.id}')">Invite Link</button>
-        <button onclick="exportMembers('${g.id}')">Export Members</button>
-      </td>
-    </tr>`;
+  groupData.forEach(g=>{
+    tbody.innerHTML+=`
+      <tr>
+        <td>${g.title}</td>
+        <td>${g.id}</td>
+        <td>${g.username}</td>
+        <td>
+          <button onclick="generateLink('${g.id}')">Invite Link</button>
+          <button class="secondary" onclick="exportMembers('${g.id}')">Export Members</button>
+        </td>
+      </tr>`;
   });
 }
 
+// Submit Source & Target
+async function submitGroups(){
+  const source=document.getElementById('sourceGroup').value.trim();
+  const target=document.getElementById('targetGroup').value.trim();
+
+  if(!source || !target){
+    alert("Please fill both fields");
+    return;
+  }
+
+  const res=await fetch('/process-groups',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({source,target})
+  });
+
+  const data=await res.json();
+  document.getElementById('responseBox').textContent=
+    JSON.stringify(data,null,2);
+}
+
+// Generate Invite Link
 async function generateLink(id){
   const res=await fetch('/generate-link?groupId='+id);
   const data=await res.json();
-  if(data.link) alert("Invite Link: "+data.link);
-  else alert("Error: "+data.error);
+  alert(data.link ? "Invite Link: "+data.link : "Error: "+data.error);
 }
 
+// Export Members
 function exportMembers(id){
   window.location='/export-members?groupId='+id;
 }
 
+// Upload Excel Preview
+async function uploadExcel(){
+  const file=document.getElementById('excelFile').files[0];
+  if(!file) return alert("Select Excel file");
+
+  const formData=new FormData();
+  formData.append("file",file);
+
+  const res=await fetch('/upload',{
+    method:"POST",
+    body:formData
+  });
+
+  const data=await res.json();
+  document.getElementById('excelPreview').textContent=
+    JSON.stringify(data,null,2);
+}
+
+// Init
 loadAccounts();
 loadGroups();
-setInterval(()=>{loadAccounts();loadGroups();},5000);
+setInterval(()=>{loadAccounts();loadGroups();},10000);
 </script>
 
 </body>
 </html>
-
