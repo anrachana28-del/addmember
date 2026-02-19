@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Telegram Dashboard Ultimate</title>
+<title>Telegram Add Member Ultimate</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:sans-serif;background:#0f172a;color:#fff;display:flex;justify-content:center;padding:30px 10px;}
@@ -22,7 +22,7 @@ button{flex:1;padding:12px;border:none;border-radius:12px;font-weight:600;cursor
 .restart{background:linear-gradient(90deg,#fbbf24,#f59e0b);}
 .stats{display:flex;justify-content:space-around;background:#0f172a;padding:15px 10px;border-radius:12px;border:1px solid #334155;margin-top:25px;font-weight:600;}
 #status{margin-top:20px;background:#0f172a;padding:12px;border-radius:12px;border:1px solid #334155;min-height:40px;line-height:1.4;}
-#memberList{margin-top:15px;max-height:150px;overflow-y:auto;background:#0f172a;padding:10px;border-radius:10px;border:1px solid #334155;}
+#memberList{margin-top:15px;max-height:200px;overflow-y:auto;background:#0f172a;padding:10px;border-radius:10px;border:1px solid #334155;}
 #memberList div{padding:2px 0;}
 label input[type="checkbox"]{margin-right:8px;}
 @media(max-width:600px){.btns{flex-direction:column;}}
@@ -124,51 +124,29 @@ async function start(){
   document.getElementById("status").innerText = data.message;
 }
 
-async function stop(){
-  const res = await fetch("/stop",{method:"POST"});
-  const data = await res.json();
-  document.getElementById("status").innerText = data.message;
-}
+// Stop & Restart
+async function stop(){ const res=await fetch("/stop",{method:"POST"}); const data=await res.json(); document.getElementById("status").innerText=data.message; }
+async function restart(){ const res=await fetch("/restart",{method:"POST"}); const data=await res.json(); document.getElementById("status").innerText=data.message; document.getElementById("success").innerText=0; document.getElementById("fail").innerText=0; document.getElementById("memberList").innerHTML=""; }
 
-async function restart(){
-  const res = await fetch("/restart",{method:"POST"});
-  const data = await res.json();
-  document.getElementById("status").innerText = data.message;
-  document.getElementById("success").innerText = 0;
-  document.getElementById("fail").innerText = 0;
-  document.getElementById("memberList").innerHTML = "";
-}
-
-// Fetch stats every 3s
+// Poll stats & member logs
 setInterval(async()=>{
-  const res = await fetch("/stats");
-  const data = await res.json();
-  document.getElementById("success").innerText = data.success;
-  document.getElementById("fail").innerText = data.fail;
+  const statsRes = await fetch("/stats");
+  const statsData = await statsRes.json();
+  document.getElementById("success").innerText = statsData.success;
+  document.getElementById("fail").innerText = statsData.fail;
 
-  // Append new member log dynamically
+  const logRes = await fetch("/member-logs");
+  const logs = await logRes.json();
   const memberLog = document.getElementById("memberList");
-  // This is just basic: logs success/fail count
-  if(window.lastStats){
-    let newSuccess = data.success - window.lastStats.success;
-    let newFail = data.fail - window.lastStats.fail;
-    if(newSuccess > 0){
-      for(let i=0;i<newSuccess;i++){
-        const div = document.createElement("div");
-        div.innerText = `✅ Added`;
-        memberLog.appendChild(div);
-      }
-    }
-    if(newFail > 0){
-      for(let i=0;i<newFail;i++){
-        const div = document.createElement("div");
-        div.innerText = `❌ Failed`;
-        memberLog.appendChild(div);
-      }
-    }
-  }
-  window.lastStats = data;
-},3000);
+  memberLog.innerHTML = "";
+  logs.forEach(l=>{
+    const div = document.createElement("div");
+    div.innerText = `${l.status==="success"?"✅":"❌"} ${l.username}`;
+    memberLog.appendChild(div);
+  });
+
+  document.getElementById("status").innerText = logs.length>0 ? `Adding ${logs[logs.length-1].username}...` : "Idle";
+},1000);
 </script>
 </body>
 </html>
