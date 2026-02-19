@@ -16,10 +16,11 @@ const DELAY = parseInt(process.env.DELAY_MS) || 30000;
 
 let clients = {};
 let stats = { success: 0, fail: 0 };
+let memberLogs = []; // store username/id + status
 let isRunning = false;
 let interval;
 
-// Load accounts from .env
+// Load accounts
 for (let i = 1; i <= 10; i++) {
   const apiId = process.env[`API_ID_${i}`];
   const apiHash = process.env[`API_HASH_${i}`];
@@ -54,6 +55,7 @@ app.post("/start", async (req,res)=>{
 
   isRunning = true;
   stats = {success:0, fail:0};
+  memberLogs = [];
   let userIndex = 0;
   let currentAccountIndex = 0;
 
@@ -72,7 +74,9 @@ app.post("/start", async (req,res)=>{
         users: [username]
       }));
       console.log(`✅ ${accountName} added ${username}`);
-      stats.success++; userIndex++;
+      stats.success++;
+      memberLogs.push({username, status:"success"});
+      userIndex++;
     }catch(err){
       if(err.message.includes("FLOOD_WAIT")){
         console.log(`⚠ FLOOD_WAIT on ${accountName}, switching account`);
@@ -83,7 +87,9 @@ app.post("/start", async (req,res)=>{
         }
       } else {
         console.log(`❌ Failed ${username} - ${err.message}`);
-        stats.fail++; userIndex++;
+        stats.fail++;
+        memberLogs.push({username, status:"fail"});
+        userIndex++;
       }
     }
   }, DELAY);
@@ -99,9 +105,12 @@ app.post("/stop",(req,res)=>{
 app.post("/restart",(req,res)=>{
   isRunning=false; clearInterval(interval);
   stats={success:0,fail:0};
+  memberLogs=[];
   res.json({message:"Restarted"});
 });
 
 app.get("/stats",(req,res)=>res.json(stats));
+
+app.get("/member-logs",(req,res)=>res.json(memberLogs));
 
 app.listen(PORT,()=>console.log(`Server running at http://localhost:${PORT}`));
