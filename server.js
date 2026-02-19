@@ -11,12 +11,8 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static(__dirname));
 
-app.get("/", (req,res)=>{
-  res.sendFile(path.join(__dirname, "index.html"));
-});
-
 const PORT = process.env.PORT || 3000;
-const DELAY = parseInt(process.env.DELAY_MS) || 30000; // 30s delay
+const DELAY = parseInt(process.env.DELAY_MS) || 30000;
 
 let clients = {};
 let stats = { success: 0, fail: 0 };
@@ -86,7 +82,7 @@ app.post("/start", async (req,res)=>{
           isRunning = false;
         }
       } else {
-        console.log(`❌ Failed to add ${username} - ${err.message}`);
+        console.log(`❌ Failed ${username} - ${err.message}`);
         stats.fail++; userIndex++;
       }
     }
