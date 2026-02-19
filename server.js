@@ -9,18 +9,14 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Serve static files from root
-app.use(express.static(__dirname));
-
-// Serve index.html at root
-app.get("/", (req,res)=>{
-  res.sendFile(path.join(__dirname, "index.html"));
-});
+// Serve static files
+app.use(express.static(path.join(__dirname, "public")));
+app.get("/", (req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 
 const PORT = process.env.PORT || 3000;
 
 let clients = {};
-let stats = { success: 0, fail: 0 };
+let stats = { success: 0, fail: 0, currentUser: 0 };
 let isRunning = false;
 let interval;
 
@@ -35,9 +31,10 @@ for (let i = 1; i <= 10; i++) {
   }
 }
 
-// Routes
+// API: get accounts
 app.get("/accounts", (req,res)=>res.json(Object.keys(clients)));
 
+// API: export members
 app.post("/export-members", async (req,res)=>{
   const { account, group } = req.body;
   const client = clients[account];
@@ -52,13 +49,15 @@ app.post("/export-members", async (req,res)=>{
   }
 });
 
+// API: start adding members
 app.post("/start", async (req,res)=>{
   const { group, usernames, accounts } = req.body;
   if(!accounts || accounts.length===0) return res.json({message:"No accounts selected"});
   if(isRunning) return res.json({message:"Already running"});
-  
+
   isRunning = true;
-  stats = {success:0, fail:0};
+  stats = { success:0, fail:0, currentUser:0 };
+
   let userIndex = 0;
   let currentAccountIndex = 0;
 
@@ -66,46 +65,57 @@ app.post("/start", async (req,res)=>{
     if(!isRunning || userIndex >= usernames.length){
       clearInterval(interval); isRunning = false; return;
     }
+
     const accountName = accounts[currentAccountIndex];
     const client = clients[accountName];
+    const username = usernames[userIndex];
+
     try{
       await client.connect();
       await client.invoke({
         _: "channels.inviteToChannel",
         channel: group,
-        users: [usernames[userIndex]]
+        users: [username]
       });
-      console.log(`✅ ${accountName} added ${usernames[userIndex]}`);
-      stats.success++; userIndex++;
+      console.log(`✅ ${accountName} added ${username}`);
+      stats.success++;
+      stats.currentUser = userIndex + 1;
+      userIndex++;
     }catch(err){
       if(err.message.includes("FLOOD_WAIT")){
-        console.log(`⚠ Flood on ${accountName}`);
+        console.log(`⚠ Flood WAIT on ${accountName}, rotating account`);
         currentAccountIndex++;
         if(currentAccountIndex >= accounts.length){
+          console.log("All accounts hit FLOOD_WAIT, stopping...");
           clearInterval(interval);
           isRunning = false;
         }
-      }else{
-        console.log(`❌ Failed ${usernames[userIndex]}`);
-        stats.fail++; userIndex++;
+      } else {
+        console.log(`❌ Failed ${username}: ${err.message}`);
+        stats.fail++;
+        stats.currentUser = userIndex + 1;
+        userIndex++;
       }
     }
-  }, 40000);
+  }, 40000); // 40s interval
 
-  res.json({message:"Started with selected accounts"});
+  res.json({message:"Started"});
 });
 
+// API: stop
 app.post("/stop",(req,res)=>{
   isRunning=false; clearInterval(interval);
   res.json({message:"Stopped"});
 });
 
+// API: restart
 app.post("/restart",(req,res)=>{
   isRunning=false; clearInterval(interval);
-  stats={success:0,fail:0};
+  stats={success:0, fail:0, currentUser:0};
   res.json({message:"Restarted"});
 });
 
+// API: stats
 app.get("/stats",(req,res)=>res.json(stats));
 
 app.listen(PORT,()=>console.log(`Server running at http://localhost:${PORT}`));
