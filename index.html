@@ -4,28 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Telegram Dashboard Ultimate</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Inter',sans-serif;background:#0f172a;color:#fff;display:flex;justify-content:center;padding:30px 10px;}
+body{font-family:sans-serif;background:#0f172a;color:#fff;display:flex;justify-content:center;padding:30px 10px;}
 .container{width:100%;max-width:700px;background:#1e293b;border-radius:20px;padding:30px;box-shadow:0 15px 40px rgba(0,0,0,0.5);}
-h2{text-align:center;color:#38bdf8;font-size:30px;margin-bottom:20px;}
-h3{color:#a5b4fc;margin:20px 0 10px;font-size:18px;}
-input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:none;background:#0f172a;color:#fff;font-size:14px;}
+h2{text-align:center;color:#38bdf8;margin-bottom:20px;}
+h3{margin:20px 0 10px;color:#a5b4fc;}
+input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:none;background:#0f172a;color:#fff;}
 textarea{height:120px;resize:vertical;}
 .accountsBox{max-height:160px;overflow-y:auto;background:#0f172a;padding:10px;border-radius:10px;border:1px solid #334155;}
 .accountsBox div{padding:5px 0;}
 .accountsBox label{cursor:pointer;}
 .btns{display:flex;gap:15px;margin-top:20px;flex-wrap:wrap;}
-button{flex:1;padding:12px;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(0,0,0,0.3);}
+button{flex:1;padding:12px;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.3s;}
 .start{background:linear-gradient(90deg,#38bdf8,#0ea5e9);}
-.start:hover{opacity:0.85;}
 .stop{background:linear-gradient(90deg,#f87171,#ef4444);}
-.stop:hover{opacity:0.85;}
 .restart{background:linear-gradient(90deg,#fbbf24,#f59e0b);}
-.restart:hover{opacity:0.85;}
-.stats{display:flex;justify-content:space-around;background:#0f172a;padding:15px 10px;border-radius:12px;border:1px solid #334155;font-weight:600;margin-top:25px;}
-#status{margin-top:20px;background:#0f172a;padding:12px;border-radius:12px;border:1px solid #334155;min-height:100px;line-height:1.4;overflow:auto;}
+.stats{display:flex;justify-content:space-around;background:#0f172a;padding:15px 10px;border-radius:12px;border:1px solid #334155;margin-top:25px;font-weight:600;}
+#status{margin-top:20px;background:#0f172a;padding:12px;border-radius:12px;border:1px solid #334155;min-height:40px;line-height:1.4;}
 label input[type="checkbox"]{margin-right:8px;}
 @media(max-width:600px){.btns{flex-direction:column;}}
 </style>
@@ -107,67 +103,41 @@ async function exportMembers(){
   }
 }
 
-let pollInterval;
-
 async function start(){
   const group = document.getElementById("targetGroup").value;
   const users = document.getElementById("users").value.split("\n").map(u=>u.trim()).filter(u=>u!=="");
   const accounts = getSelectedAccounts();
   if(accounts.length===0){ alert("Select at least one account"); return; }
-
-  document.getElementById("status").innerHTML = "Adding members...<br>";
+  document.getElementById("status").innerText = "Adding members...";
   const res = await fetch("/start",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({group,usernames:users,accounts})
   });
   const data = await res.json();
-  document.getElementById("status").innerHTML += data.message + "<br>";
-
-  // Poll stats every 2 sec to show per user
-  let lastSuccess = 0, lastFail = 0;
-  pollInterval = setInterval(async()=>{
-    const statsRes = await fetch("/stats");
-    const statsData = await statsRes.json();
-
-    document.getElementById("success").innerText = statsData.success;
-    document.getElementById("fail").innerText = statsData.fail;
-
-    for(let i=lastSuccess; i<statsData.success; i++){
-      document.getElementById("status").innerHTML += `✅ Added: ${users[i]}<br>`;
-    }
-    for(let i=lastFail; i<statsData.fail; i++){
-      document.getElementById("status").innerHTML += `❌ Failed: ${users[i]}<br>`;
-    }
-
-    lastSuccess = statsData.success;
-    lastFail = statsData.fail;
-
-    if(lastSuccess + lastFail >= users.length){
-      clearInterval(pollInterval);
-    }
-
-    // Scroll to bottom
-    const statusDiv = document.getElementById("status");
-    statusDiv.scrollTop = statusDiv.scrollHeight;
-  },2000);
+  document.getElementById("status").innerText = data.message;
 }
 
 async function stop(){
-  clearInterval(pollInterval);
   const res = await fetch("/stop",{method:"POST"});
   const data = await res.json();
-  document.getElementById("status").innerHTML += data.message + "<br>";
+  document.getElementById("status").innerText = data.message;
 }
 
 async function restart(){
-  clearInterval(pollInterval);
   const res = await fetch("/restart",{method:"POST"});
   const data = await res.json();
-  document.getElementById("status").innerHTML += data.message + "<br>";
+  document.getElementById("status").innerText = data.message;
   document.getElementById("success").innerText = 0;
   document.getElementById("fail").innerText = 0;
 }
+
+setInterval(async()=>{
+  const res = await fetch("/stats");
+  const data = await res.json();
+  document.getElementById("success").innerText = data.success;
+  document.getElementById("fail").innerText = data.fail;
+},3000);
 </script>
 </body>
 </html>
