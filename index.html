@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telegram Dashboard Ultimate</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:#0f172a;color:#fff;display:flex;justify-content:center;padding:30px 10px;}
+.container{width:100%;max-width:700px;background:#1e293b;border-radius:20px;padding:30px;box-shadow:0 15px 40px rgba(0,0,0,0.5);}
+h2{text-align:center;color:#38bdf8;font-size:30px;margin-bottom:20px;}
+h3{color:#a5b4fc;margin:20px 0 10px;font-size:18px;}
+input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:none;background:#0f172a;color:#fff;font-size:14px;}
+textarea{height:120px;resize:vertical;}
+.accountsBox{max-height:160px;overflow-y:auto;background:#0f172a;padding:10px;border-radius:10px;border:1px solid #334155;}
+.accountsBox div{padding:5px 0;}
+.accountsBox label{cursor:pointer;}
+.btns{display:flex;gap:15px;margin-top:20px;flex-wrap:wrap;}
+button{flex:1;padding:12px;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.3s ease;box-shadow:0 4px 15px rgba(0,0,0,0.3);}
+.start{background:linear-gradient(90deg,#38bdf8,#0ea5e9);}
+.start:hover{opacity:0.85;}
+.stop{background:linear-gradient(90deg,#f87171,#ef4444);}
+.stop:hover{opacity:0.85;}
+.restart{background:linear-gradient(90deg,#fbbf24,#f59e0b);}
+.restart:hover{opacity:0.85;}
+.stats{display:flex;justify-content:space-around;background:#0f172a;padding:15px 10px;border-radius:12px;border:1px solid #334155;font-weight:600;margin-top:25px;}
+#status{margin-top:20px;background:#0f172a;padding:12px;border-radius:12px;border:1px solid #334155;min-height:40px;line-height:1.4;}
+label input[type="checkbox"]{margin-right:8px;}
+@media(max-width:600px){.btns{flex-direction:column;}}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>Telegram Add Member Ultimate</h2>
+
+<h3>Select Accounts</h3>
+<div id="accountsList" class="accountsBox"></div>
+<label><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Select All</label>
+
+<h3>Source Group (Export Members)</h3>
+<input type="text" id="sourceGroup" placeholder="Source Group">
+<button class="start" onclick="exportMembers()">Export Members</button>
+
+<h3>Target Group (Add Members)</h3>
+<input type="text" id="targetGroup" placeholder="Target Group">
+
+<h3>Member IDs/Usernames</h3>
+<textarea id="users" placeholder="IDs/Usernames"></textarea>
+
+<div class="btns">
+<button class="start" onclick="start()">Start</button>
+<button class="stop" onclick="stop()">Stop</button>
+<button class="restart" onclick="restart()">Restart</button>
+</div>
+
+<div class="stats">
+<div>Success: <span id="success">0</span></div>
+<div>Fail: <span id="fail">0</span></div>
+</div>
+
+<div id="status"></div>
+</div>
+
+<script>
+async function loadAccounts(){
+  const res = await fetch("/accounts");
+  const data = await res.json();
+  const container = document.getElementById("accountsList");
+  container.innerHTML = "";
+  data.forEach(acc=>{
+    const div=document.createElement("div");
+    div.innerHTML = `<label><input type="checkbox" class="accountChk" value="${acc}"> ${acc}</label>`;
+    container.appendChild(div);
+  });
+}
+loadAccounts();
+
+function toggleSelectAll(){
+  const checked = document.getElementById("selectAll").checked;
+  document.querySelectorAll(".accountChk").forEach(chk=>chk.checked=checked);
+}
+
+function getSelectedAccounts(){
+  const selected=[];
+  document.querySelectorAll(".accountChk:checked").forEach(chk=>selected.push(chk.value));
+  return selected;
+}
+
+async function exportMembers(){
+  const selectedAccounts = getSelectedAccounts();
+  if(selectedAccounts.length===0){ alert("Select at least one account"); return; }
+  const group = document.getElementById("sourceGroup").value;
+  const account = selectedAccounts[0];
+  document.getElementById("status").innerText = "Exporting members...";
+  const res = await fetch("/export-members",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({account,group})
+  });
+  const data = await res.json();
+  if(data.success){
+    document.getElementById("users").value = data.ids.join("\n");
+    document.getElementById("status").innerText = `Exported ${data.ids.length} members`;
+  }else{
+    document.getElementById("status").innerText = `Error: ${data.error}`;
+  }
+}
+
+async function start(){
+  const group = document.getElementById("targetGroup").value;
+  const users = document.getElementById("users").value.split("\n").map(u=>u.trim()).filter(u=>u!=="");
+  const accounts = getSelectedAccounts();
+  if(accounts.length===0){ alert("Select at least one account"); return; }
+  document.getElementById("status").innerText = "Adding members...";
+  const res = await fetch("/start",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({group,usernames:users,accounts})
+  });
+  const data = await res.json();
+  document.getElementById("status").innerText = data.message;
+}
+
+async function stop(){
+  const res = await fetch("/stop",{method:"POST"});
+  const data = await res.json();
+  document.getElementById("status").innerText = data.message;
+}
+
+async function restart(){
+  const res = await fetch("/restart",{method:"POST"});
+  const data = await res.json();
+  document.getElementById("status").innerText = data.message;
+  document.getElementById("success").innerText = 0;
+  document.getElementById("fail").innerText = 0;
+}
+
+setInterval(async()=>{
+  const res = await fetch("/stats");
+  const data = await res.json();
+  document.getElementById("success").innerText = data.success;
+  document.getElementById("fail").innerText = data.fail;
+},3000);
+</script>
+</body>
+</html>
