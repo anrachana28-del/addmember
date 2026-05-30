@@ -4,149 +4,342 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Telegram Add Member Ultimate</title>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:sans-serif;background:#0f172a;color:#fff;display:flex;justify-content:center;padding:30px 10px;}
-.container{width:100%;max-width:700px;background:#1e293b;border-radius:20px;padding:30px;box-shadow:0 15px 40px rgba(0,0,0,0.5);}
-h2{text-align:center;color:#38bdf8;margin-bottom:20px;}
-h3{margin:20px 0 10px;color:#a5b4fc;}
-input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:none;background:#0f172a;color:#fff;}
-textarea{height:120px;resize:vertical;}
-.accountsBox{max-height:160px;overflow-y:auto;background:#0f172a;padding:10px;border-radius:10px;border:1px solid #334155;}
-.accountsBox div{padding:5px 0;}
-.accountsBox label{cursor:pointer;}
-.btns{display:flex;gap:15px;margin-top:20px;flex-wrap:wrap;}
-button{flex:1;padding:12px;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.3s;}
-.start{background:linear-gradient(90deg,#38bdf8,#0ea5e9);}
-.stop{background:linear-gradient(90deg,#f87171,#ef4444);}
-.restart{background:linear-gradient(90deg,#fbbf24,#f59e0b);}
-.stats{display:flex;justify-content:space-around;background:#0f172a;padding:15px 10px;border-radius:12px;border:1px solid #334155;margin-top:25px;font-weight:600;}
-#status{margin-top:20px;background:#0f172a;padding:12px;border-radius:12px;border:1px solid #334155;min-height:40px;line-height:1.4;}
-#memberList{margin-top:15px;max-height:200px;overflow-y:auto;background:#0f172a;padding:10px;border-radius:10px;border:1px solid #334155;}
-#memberList div{padding:2px 0;}
-label input[type="checkbox"]{margin-right:8px;}
-@media(max-width:600px){.btns{flex-direction:column;}}
+
+.container{
+  width:100%;
+  max-width:800px;
+  background:#1e293b;
+  border-radius:20px;
+  padding:25px;
+}
+
+h3{margin:15px 0;color:#a5b4fc;}
+
+input,textarea{
+  width:100%;
+  padding:12px;
+  margin-top:8px;
+  border-radius:10px;
+  border:none;
+  background:#0f172a;
+  color:#fff;
+}
+
+textarea{height:120px;}
+
+button{
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+  margin-top:8px;
+}
+
+.start{background:#38bdf8;}
+.stop{background:#ef4444;}
+.restart{background:#f59e0b;}
+
+.stats{
+  display:flex;
+  justify-content:space-around;
+  margin-top:15px;
+  background:#0f172a;
+  padding:10px;
+  border-radius:10px;
+}
+
+.tabBar{
+  display:flex;
+  gap:10px;
+  margin-bottom:15px;
+}
+
+.tabBar button{
+  flex:1;
+  background:#0f172a;
+  color:#fff;
+  border:1px solid #334155;
+}
+
+.tabBar button.active{
+  background:#38bdf8;
+}
+
+.accountsTable{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+.accountsTable th,
+.accountsTable td{
+  padding:10px;
+  border-bottom:1px solid #334155;
+}
+
+#memberList{
+  margin-top:10px;
+  max-height:200px;
+  overflow:auto;
+  background:#0f172a;
+  padding:10px;
+  border-radius:10px;
+}
+
+/* ================= LOADER ================= */
+.loader-bar{
+  height:4px;
+  width:100%;
+  margin-top:15px;
+  border-radius:10px;
+  background:#0f172a;
+  overflow:hidden;
+  position:relative;
+}
+
+.loader-bar::before{
+  content:"";
+  position:absolute;
+  height:100%;
+  width:40%;
+  background:linear-gradient(90deg,transparent,#38bdf8,transparent);
+  animation:move 1s infinite linear;
+}
+
+@keyframes move{
+  0%{ left:-40%; }
+  100%{ left:100%; }
+}
 </style>
 </head>
+
 <body>
+
 <div class="container">
-<h2>Telegram Add Member Ultimate</h2>
 
-<h3>Select Accounts</h3>
-<div id="accountsList" class="accountsBox"></div>
-<label><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Select All</label>
+<!-- TAB -->
+<div class="tabBar">
+  <button onclick="showPage('home')">Home</button>
+  <button onclick="showPage('accounts')">Accounts</button>
+</div>
 
-<h3>Source Group (Export Members)</h3>
-<input type="text" id="sourceGroup" placeholder="Source Group">
+<!-- HOME -->
+<div id="homePage">
+
+<h3>Source Group</h3>
+<input id="sourceGroup">
+
 <button class="start" onclick="exportMembers()">Export Members</button>
 
-<h3>Target Group (Add Members)</h3>
-<input type="text" id="targetGroup" placeholder="Target Group">
+<h3>Target Group</h3>
+<input id="targetGroup">
 
-<h3>Member IDs/Usernames</h3>
-<textarea id="users" placeholder="IDs/Usernames"></textarea>
+<h3>Users</h3>
+<textarea id="users"></textarea>
 
-<div class="btns">
 <button class="start" onclick="start()">Start</button>
 <button class="stop" onclick="stop()">Stop</button>
 <button class="restart" onclick="restart()">Restart</button>
-</div>
+
+<!-- LOADER -->
+<div id="loaderBar" class="loader-bar" style="display:none;"></div>
 
 <div class="stats">
-<div>Success: <span id="success">0</span></div>
-<div>Fail: <span id="fail">0</span></div>
+  <div>Success: <span id="success">0</span></div>
+  <div>Fail: <span id="fail">0</span></div>
 </div>
 
 <div id="status"></div>
-<h3>Members Log</h3>
+
+<h3>Logs</h3>
 <div id="memberList"></div>
+
+</div>
+
+<!-- ACCOUNTS -->
+<div id="accountsPage" style="display:none;">
+
+<h3>Accounts</h3>
+
+<table class="accountsTable">
+<thead>
+<tr>
+<th>Select</th>
+<th>Account</th>
+<th>Status</th>
+</tr>
+</thead>
+
+<tbody id="accountsList"></tbody>
+</table>
+
+</div>
+
 </div>
 
 <script>
+
+/* ================= STATE ================= */
+let selectedAccounts = new Set();
+
+/* ================= LOAD ACCOUNTS ================= */
 async function loadAccounts(){
-  const res = await fetch("/accounts");
+  const res = await fetch("/account-status");
   const data = await res.json();
-  const container = document.getElementById("accountsList");
-  container.innerHTML = "";
-  data.forEach(acc=>{
-    const div=document.createElement("div");
-    div.innerHTML = `<label><input type="checkbox" class="accountChk" value="${acc}"> ${acc}</label>`;
-    container.appendChild(div);
+
+  const tbody = document.getElementById("accountsList");
+  tbody.innerHTML = "";
+
+  data.forEach(a => {
+
+    let color = "#38bdf8";
+    if(a.status === "ACTIVE") color = "#22c55e";
+    if(a.status === "ERROR") color = "#ef4444";
+    if(a.status === "FLOOD") color = "#f59e0b";
+
+    const checked = selectedAccounts.has(a.account) ? "checked" : "";
+
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td><input type="checkbox" class="acc" value="${a.account}" ${checked}></td>
+      <td>${a.account}</td>
+      <td style="color:${color};font-weight:700">${a.status}</td>
+    `;
+
+    tbody.appendChild(row);
+  });
+
+  document.querySelectorAll(".acc").forEach(cb=>{
+    cb.onchange = () => {
+      cb.checked ? selectedAccounts.add(cb.value) : selectedAccounts.delete(cb.value);
+    };
   });
 }
-loadAccounts();
 
-function toggleSelectAll(){
-  const checked = document.getElementById("selectAll").checked;
-  document.querySelectorAll(".accountChk").forEach(chk=>chk.checked=checked);
+/* ================= GET ACCOUNTS ================= */
+function getAccounts(){
+  return [...selectedAccounts];
 }
 
-function getSelectedAccounts(){
-  const selected=[];
-  document.querySelectorAll(".accountChk:checked").forEach(chk=>selected.push(chk.value));
-  return selected;
-}
-
+/* ================= EXPORT ================= */
 async function exportMembers(){
-  const selectedAccounts = getSelectedAccounts();
-  if(selectedAccounts.length===0){ alert("Select at least one account"); return; }
+  const accounts = getAccounts();
+  if(!accounts.length) return alert("Select account");
+
   const group = document.getElementById("sourceGroup").value;
-  const account = selectedAccounts[0];
-  document.getElementById("status").innerText = "Loading members...";
+
   const res = await fetch("/export-members",{
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({account,group})
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ account:accounts[0], group })
   });
+
   const data = await res.json();
   if(data.success){
     document.getElementById("users").value = data.ids.join("\n");
-    document.getElementById("status").innerText = `Exported ${data.ids.length} members`;
-  }else{
-    document.getElementById("status").innerText = `Error: ${data.error}`;
   }
 }
 
+/* ================= START ================= */
 async function start(){
+
+  const accounts = getAccounts();
+  const users = document.getElementById("users").value
+    .split("\n")
+    .filter(x => x.trim());
+
   const group = document.getElementById("targetGroup").value;
-  const users = document.getElementById("users").value.split("\n").map(u=>u.trim()).filter(u=>u!=="");
-  const accounts = getSelectedAccounts();
-  if(accounts.length===0){ alert("Select at least one account"); return; }
-  document.getElementById("status").innerText = "Adding members...";
-  document.getElementById("memberList").innerHTML = "";
+
+  if(!accounts.length) return alert("No account");
+
+  document.getElementById("loaderBar").style.display = "block";
+  document.getElementById("status").innerText = "Processing...";
 
   const res = await fetch("/start",{
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({group,usernames:users,accounts})
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      group,
+      usernames:users,
+      accounts
+    })
   });
+
   const data = await res.json();
   document.getElementById("status").innerText = data.message;
+
+  selectedAccounts.clear();
+  loadAccounts();
 }
 
-// Stop & Restart
-async function stop(){ const res=await fetch("/stop",{method:"POST"}); const data=await res.json(); document.getElementById("status").innerText=data.message; }
-async function restart(){ const res=await fetch("/restart",{method:"POST"}); const data=await res.json(); document.getElementById("status").innerText=data.message; document.getElementById("success").innerText=0; document.getElementById("fail").innerText=0; document.getElementById("memberList").innerHTML=""; }
+/* ================= STOP ================= */
+async function stop(){
+  document.getElementById("loaderBar").style.display = "none";
 
-// Poll stats & member logs
-setInterval(async()=>{
-  const statsRes = await fetch("/stats");
-  const statsData = await statsRes.json();
-  document.getElementById("success").innerText = statsData.success;
-  document.getElementById("fail").innerText = statsData.fail;
+  const r = await fetch("/stop",{method:"POST"});
+  document.getElementById("status").innerText = (await r.json()).message;
+}
 
-  const logRes = await fetch("/member-logs");
-  const logs = await logRes.json();
-  const memberLog = document.getElementById("memberList");
-  memberLog.innerHTML = "";
-  logs.forEach(l=>{
-    const div = document.createElement("div");
-    div.innerText = `${l.status==="success"?"✅":"❌"} ${l.username}`;
-    memberLog.appendChild(div);
-  });
+/* ================= RESTART ================= */
+async function restart(){
+  document.getElementById("loaderBar").style.display = "none";
 
-  document.getElementById("status").innerText = logs.length>0 ? `Adding ${logs[logs.length-1].username}...` : "Idle";
-},1000);
+  await fetch("/restart",{method:"POST"});
+
+  document.getElementById("success").innerText = 0;
+  document.getElementById("fail").innerText = 0;
+  document.getElementById("memberList").innerHTML = "";
+  document.getElementById("status").innerText = "Reset done";
+}
+
+/* ================= LIVE UPDATE ================= */
+function live(){
+  setInterval(async()=>{
+
+    const stats = await fetch("/stats").then(r=>r.json());
+    document.getElementById("success").innerText = stats.success;
+    document.getElementById("fail").innerText = stats.fail;
+
+    const logs = await fetch("/member-logs").then(r=>r.json());
+
+    const box = document.getElementById("memberList");
+    box.innerHTML = "";
+
+    logs.slice(-20).forEach(l=>{
+      box.innerHTML += `
+        <div>${l.status==="success"?"✅":"❌"} ${l.username}</div>
+      `;
+    });
+
+    const total = stats.success + stats.fail;
+    const inputTotal = document.getElementById("users").value.split("\n").filter(x=>x.trim()).length;
+
+    if(inputTotal > 0 && total >= inputTotal){
+      document.getElementById("loaderBar").style.display = "none";
+      document.getElementById("status").innerText = "Completed ✅";
+    }
+
+  },2000);
+}
+
+/* ================= PAGE ================= */
+function showPage(p){
+  document.getElementById("homePage").style.display = p==="home"?"block":"none";
+  document.getElementById("accountsPage").style.display = p==="accounts"?"block":"none";
+}
+
+/* INIT */
+showPage("home");
+loadAccounts();
+live();
+
 </script>
+
 </body>
 </html>
